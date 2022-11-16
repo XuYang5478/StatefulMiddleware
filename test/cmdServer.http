@@ -1,0 +1,8 @@
+### Send POST request with json body
+POST localhost:8000/container/commit
+Content-Type: application/json
+
+{
+  "Id": "fjiwrogfjweoirjgfmwr",
+  "ImageName": "ubuntu:latest"
+}
