@@ -29,6 +29,9 @@ func ModifiedFile(filePath string, localHost string, remoteHost string) {
 		if strings.HasSuffix(filePath, ".tar") {
 			load := RunNerdctl("load -i " + filePath)
 			log.Printf("[info] 镜像导入执行结果：%s\n", load)
+			// 导入后把镜像文件删除，节省空间
+			del := exec.Command("rm", filePath)
+			RunCmd(del)
 		}
 	}
 }

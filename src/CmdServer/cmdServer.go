@@ -94,9 +94,14 @@ func CommitImageHandler(w http.ResponseWriter, r *http.Request) {
 		return false
 	})
 
-	log.Println("[info] 导出镜像：", data.ImageName, "->", names[0]+".tar")
-	save := RunNerdctl(fmt.Sprintf("save %s -o /root/checkpoint/%s.tar", data.ImageName, fmt.Sprintf("%s_%v", names[0], time.Now().Unix())))
+	createTime := time.Now().Unix()
+	imageFileName := fmt.Sprintf("/root/checkpoint/%s_%s.tar", names[1], fmt.Sprint(createTime))
+
+	log.Println("[info] 导出镜像：", data.ImageName, "->", imageFileName)
+	save := RunNerdctl(fmt.Sprintf("save %s -o %s", data.ImageName, imageFileName))
 	log.Println("[info] save 执行结果：", save)
+
+	AddGossipMsg("c", imageFileName, fmt.Sprint(createTime))
 
 	if commit != "" && save != "" {
 		w.Write([]byte("ok"))
@@ -114,8 +119,15 @@ func StartContainerHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	log.Printf("[info] 容器 (%s, %s) 启动，准备开启 gossip 服务\n", data.ActionName, data.Id)
-	cmd := exec.Command("/bin/sh", "-c", fmt.Sprintf("/usr/bin/gossip_v2 %s %s", data.ActionName, data.Id))
+	names := strings.FieldsFunc(data.ActionName, func(r rune) bool {
+		if r == '_' || r == '-' {
+			return true
+		}
+		return false
+	})
+
+	log.Printf("[info] 容器 (%s, %s) 启动，准备开启 gossip 服务\n", names[0], data.Id)
+	cmd := exec.Command("/bin/sh", "-c", fmt.Sprintf("/usr/bin/GossipSync %s %s", names[0], data.Id))
 	cmd.Stdout = log.Writer()
 	err := cmd.Start()
 	if err != nil {
@@ -140,14 +152,14 @@ func StopContainerHandler(w http.ResponseWriter, r *http.Request) {
 	log.Printf("[info] 容器 (%s, %s) 停止，准备关闭 gossip 服务\n", data.ActionName, data.Id)
 
 	// kill 时会将父进程一起 kill 掉
-	// killCmd := exec.Command("/bin/sh", "-c", fmt.Sprintf("kill %d", RunningGossip[data.Id]))
-	// out, err := killCmd.CombinedOutput()
-	// if err != nil {
-	// 	log.Println("[error] cmd 执行错误：", err.Error())
-	// 	w.Write([]byte("error"))
-	// 	return
-	// }
-	// log.Println("[info] kill 执行结果：", out)
+	killCmd := exec.Command("/bin/sh", "-c", fmt.Sprintf("kill %d", RunningGossip[data.Id]))
+	out, err := killCmd.CombinedOutput()
+	if err != nil {
+		log.Println("[error] cmd 执行错误：", err.Error())
+		w.Write([]byte("error"))
+		return
+	}
+	log.Println("[info] kill 执行结果：", out)
 
 	//result := RunNerdctl(fmt.Sprintf("commit -p=false %s %s", data.Id, data.ImageName))
 	//log.Println("[info] commit 执行结果：", result)

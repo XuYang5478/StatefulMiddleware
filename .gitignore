@@ -19,3 +19,5 @@
 
 # IDEA
 .idea
+/logs.log
+/go.sum

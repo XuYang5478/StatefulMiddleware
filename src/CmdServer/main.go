@@ -2,7 +2,6 @@ package main
 
 import (
 	"fmt"
-	"github.com/fsnotify/fsnotify"
 	"log"
 	"net/http"
 	"os"
@@ -10,7 +9,6 @@ import (
 	"syscall"
 )
 
-var FileWatcher Watcher
 var SySFuncName = "sys_image_sync"
 
 func init() {
@@ -24,13 +22,6 @@ func init() {
 }
 
 func main() {
-	// 创建文件监听器并监听 checkpoint 文件夹
-	watch, _ := fsnotify.NewWatcher()
-	FileWatcher = Watcher{
-		watch: watch,
-	}
-	FileWatcher.WatchDir("/root/checkpoint")
-
 	// 开启 Gossip 同步
 	nodeInfo, err := StartGossip(SySFuncName)
 	if err != nil {
@@ -47,7 +38,7 @@ func main() {
 		if err2 != nil {
 			log.Fatalln("[error], 无法启动服务器。", err2.Error())
 		}
-		fmt.Println("开启 HTTP 服务")
+		log.Println("[info] 开启 HTTP 服务")
 	}()
 
 	quit := make(chan os.Signal, 1)

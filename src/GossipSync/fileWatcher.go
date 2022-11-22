@@ -1,28 +1,32 @@
 package main
 
 import (
+	"database/sql"
 	"fmt"
-	"github.com/fsnotify/fsnotify"
 	"io/fs"
-	"log"
 	"os"
 	"path/filepath"
 	"strings"
 	"time"
+
+	"github.com/fsnotify/fsnotify"
 )
 
-type Watcher struct {
-	watch *fsnotify.Watcher
-}
-
 func noneSysFileOrDir(path string) bool {
-	if strings.Contains(path, "/proc") || strings.Contains(path, "/dev") || strings.Contains(path, "/sys") {
+	if strings.Contains(path, "/proc") || strings.Contains(path, "/dev") ||
+		strings.Contains(path, "/sys") || strings.Contains(path, "/run") ||
+		strings.Contains(path, "/etc") {
 		return false
 	}
 	return true
 }
 
-func (w *Watcher) AddWatcher(dir string) {
+type Watch struct {
+	watch *fsnotify.Watcher
+}
+
+// 递归遍历为子目录添加监控
+func (w *Watch) watchDir(dir string, db *sql.DB) {
 	filepath.Walk(dir, func(path string, info fs.FileInfo, err error) error {
 		if err != nil {
 			return err
@@ -42,10 +46,6 @@ func (w *Watcher) AddWatcher(dir string) {
 		}
 		return nil
 	})
-}
-
-func (w *Watcher) WatchDir(dir string) {
-	w.AddWatcher(dir)
 
 	go func() {
 		for {
@@ -61,14 +61,15 @@ func (w *Watcher) WatchDir(dir string) {
 								w.watch.Add(ev.Name)
 								fmt.Println("添加监控 : ", ev.Name)
 							}
-							AddGossipMsg("c", ev.Name, fmt.Sprint(fi.ModTime().Unix()))
+							addGossipMsg("c", ev.Name, fmt.Sprint(fi.ModTime().Unix()))
+
 						}
 					}
 					if ev.Op&fsnotify.Write == fsnotify.Write {
 						// fmt.Println("写入文件 : ", ev.Name)
 						fi, err := os.Stat(ev.Name)
 						if err == nil {
-							AddGossipMsg("c", ev.Name, fmt.Sprint(fi.ModTime().Unix()))
+							addGossipMsg("c", ev.Name, fmt.Sprint(fi.ModTime().Unix()))
 						}
 					}
 					if ev.Op&fsnotify.Remove == fsnotify.Remove {
@@ -77,7 +78,7 @@ func (w *Watcher) WatchDir(dir string) {
 						// go 无法获取被删除的文件/目录的信息
 						// 所以直接删除对其的监控
 						w.watch.Remove(ev.Name)
-						AddGossipMsg("d", ev.Name, fmt.Sprint(time.Now().Unix()))
+						addGossipMsg("d", ev.Name, fmt.Sprint(time.Now().Unix()))
 					}
 					if ev.Op&fsnotify.Rename == fsnotify.Rename {
 						// fmt.Println("重命名文件 : ", ev.Name)
@@ -94,10 +95,20 @@ func (w *Watcher) WatchDir(dir string) {
 				}
 			case err := <-w.watch.Errors:
 				{
-					log.Println("[error] 文件监控出错: ", err)
+					fmt.Println("error : ", err)
 					return
 				}
 			}
 		}
 	}()
+}
+
+func FileWatcher(path string, db *sql.DB) Watch {
+	watch, _ := fsnotify.NewWatcher()
+	w := Watch{
+		watch: watch,
+	}
+	w.watchDir(path, db)
+
+	return w
 }
