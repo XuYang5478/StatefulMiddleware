@@ -21,6 +21,13 @@ func noneSysFileOrDir(path string) bool {
 	return true
 }
 
+func noneLanguageModuleDir(path string) bool {
+	if strings.Contains(path, "/node_modules") {
+		return false
+	}
+	return true
+}
+
 type Watch struct {
 	watch *fsnotify.Watcher
 }
@@ -33,7 +40,7 @@ func (w *Watch) watchDir(dir string, db *sql.DB) {
 		}
 		//这里判断是否为目录，只需监控目录即可
 		//目录下的文件也在监控范围内，不需要我们一个一个加
-		if info.IsDir() && noneSysFileOrDir(path) {
+		if info.IsDir() && noneSysFileOrDir(path) && noneLanguageModuleDir(path) {
 			dir_path, err1 := filepath.Abs(path)
 			if err1 != nil {
 				return err1
